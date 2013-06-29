@@ -1,183 +1,16 @@
 import std.stdio;
-import std.array;
 import std.getopt;
+import std.process;
+import std.array;
 import std.typecons;
 import std.typetuple;
 import std.range;
-import std.process;
 import std.algorithm;
 import std.regex;
 import std.datetime;
+import std.conv;
 
-struct CartesianProduct(Args...)
-    if (Args.length > 1)
-{
-    private Args ranges_;
-    private Args current_;
-
-    alias staticMap!(ElementType, Args) ElementTypes;
-
-public:
-    this(Args ranges)
-    {
-        foreach (i, ref r; ranges)
-        {
-            ranges_[i] = r.save;
-            current_[i] = r.save;
-        }
-    }
-
-    @property auto front()
-    {
-        Tuple!ElementTypes ret;
-        foreach (i, r; current_)
-            ret[i] = r.front;
-        return ret;
-    }
-
-    @property void popFront()
-    {
-        foreach (i, ref r; current_)
-        {
-            r.popFront;
-            if (r.empty && i != current_.length - 1)
-                r = ranges_[i].save;
-            else
-                break;
-        }
-    }
-
-    @property bool empty()
-    {
-        return current_[$-1].empty;
-    }
-}
-
-auto cartesianProduct(Args...)(Args args)
-if (Args.length > 1)
-{
-    return CartesianProduct!(Args)(args);
-}
-
-unittest {
-    auto cp = cartesianProduct([1, 2], [1.1, 2.2, 3.3]);
-    assert(equal(cp, [
-                     Tuple!(int, double)(1, 1.1),
-                     Tuple!(int, double)(2, 1.1),
-                     Tuple!(int, double)(1, 2.2),
-                     Tuple!(int, double)(2, 2.2),
-                     Tuple!(int, double)(1, 3.3),
-                     Tuple!(int, double)(2, 3.3)
-                     ]
-               ));
-
-    auto cp2 = cartesianProduct([1, 2], [1.1, 2.2, 3.3], ["a", "b", "c"]);
-    assert(equal(cp2, [Tuple!(int, double, string)(1, 1.1, "a"),
-                       Tuple!(int, double, string)(2, 1.1, "a"),
-                       Tuple!(int, double, string)(1, 2.2, "a"),
-                       Tuple!(int, double, string)(2, 2.2, "a"),
-                       Tuple!(int, double, string)(1, 3.3, "a"),
-                       Tuple!(int, double, string)(2, 3.3, "a"),
-                       Tuple!(int, double, string)(1, 1.1, "b"),
-                       Tuple!(int, double, string)(2, 1.1, "b"),
-                       Tuple!(int, double, string)(1, 2.2, "b"),
-                       Tuple!(int, double, string)(2, 2.2, "b"),
-                       Tuple!(int, double, string)(1, 3.3, "b"),
-                       Tuple!(int, double, string)(2, 3.3, "b"),
-                       Tuple!(int, double, string)(1, 1.1, "c"),
-                       Tuple!(int, double, string)(2, 1.1, "c"),
-                       Tuple!(int, double, string)(1, 2.2, "c"),
-                       Tuple!(int, double, string)(2, 2.2, "c"),
-                       Tuple!(int, double, string)(1, 3.3, "c"),
-                       Tuple!(int, double, string)(2, 3.3, "c")]
-               ));
-    // auto m = match("hel%(lo)qq%(zxcv)q", regex(`%\(.*?\)`, "g"));
-    // if (!m.empty)
-    //     writeln(m.pre, " | ", m.hit, " | ", m.post);
-}
-
-struct CartesianProduct(T)
-{
-    private T[][] ranges_;
-    private int[] current_;
-
-public:
-    this(T[][] ranges)
-    {
-        ranges_ = ranges;
-        current_.length = ranges.length;
-    }
-
-    @property auto front()
-    {
-        T[] ret;
-        ret.length = ranges_.length;
-
-        foreach(i, r; ranges_)
-            ret[i] = r[current_[i]];
-
-        return ret;
-    }
-
-    @property void popFront()
-    {
-        foreach (i, r; ranges_)
-        {
-            if ((++current_[i]) == ranges_[i].length && i != current_.length - 1)
-                current_[i] = 0;
-            else
-                break;
-        }
-    }
-
-    @property bool empty()
-    {
-        return current_[$-1] == ranges_[$-1].length;
-    }
-}
-
-auto cartesianProduct(T)(T[][] arg)
-{
-    return CartesianProduct!T(arg);
-}
-
-unittest {
-    auto a1 = ["1", "2"];
-    auto a2 = ["a", "b", "c"];
-    assert(equal(
-               [["1", "a"], ["2", "a"], ["1", "b"], ["2", "b"], ["1", "c"], ["2", "c"]],
-               CartesianProduct!string([a1, a2])));
-
-    // same, to test a1 and a2 are not modified
-    assert(equal(
-               [["1", "a"], ["2", "a"], ["1", "b"], ["2", "b"], ["1", "c"], ["2", "c"]],
-               CartesianProduct!string([a1, a2])));
-
-    auto cp2 = CartesianProduct!string([["1", "2"], ["1.1", "2.2", "3.3"], ["a", "b", "c"]]);
-    assert(equal(cp2, [["1", "1.1", "a"],
-                       ["2", "1.1", "a"],
-                       ["1", "2.2", "a"],
-                       ["2", "2.2", "a"],
-                       ["1", "3.3", "a"],
-                       ["2", "3.3", "a"],
-                       ["1", "1.1", "b"],
-                       ["2", "1.1", "b"],
-                       ["1", "2.2", "b"],
-                       ["2", "2.2", "b"],
-                       ["1", "3.3", "b"],
-                       ["2", "3.3", "b"],
-                       ["1", "1.1", "c"],
-                       ["2", "1.1", "c"],
-                       ["1", "2.2", "c"],
-                       ["2", "2.2", "c"],
-                       ["1", "3.3", "c"],
-                       ["2", "3.3", "c"]]
-               ));
-
-
-    assert(equal([[1, 3], [2, 3], [1, 4], [2, 4], [1, 5], [2, 5]],
-                 cartesianProduct([[1, 2], [3, 4, 5]])));
-}
+import cartesian;
 
 /**
    Splits the patch extracting macros
@@ -188,15 +21,6 @@ unittest {
 // {
 
 // }
-
-
-/**
-   int <end>
-   int <begin> <end>
-   int <begin> <end> <step>
-   double <begin> <end> <number>
-   enum <value> <value> ...
- */
 
 struct StepMacro(T)
     if (
@@ -237,27 +61,61 @@ unittest {
     assert(equal(StepMacro!byte(10, -3, -3), [10, 7, 4, 1, -2]));
 }
 
-struct Macro
+/**
+   int <end>
+   int <begin> <end>
+   int <begin> <end> <step>
+   double <begin> <end> <step>
+   enum <value> <value> ...
+*/
+InputRange!string constructMacro(string m)
 {
-public:
-    this(string m)
-    {
-        auto splitted = m
-            .splitter(' ')
-            .filter!(s => !s.empty)
-            .array;
+    auto splitted = m
+        .splitter(' ')
+        .filter!(s => !s.empty)
+        .array;
 
-        switch (splitted[0]) {
-        case "int":
-            break;
-        default:
-            throw new Exception("Unrecognized macro");
-        }
+    switch (splitted[0])
+    {
+    case "int":
+        if (splitted.length == 2)
+            return inputRangeObject(map!(to!string)
+                                    (StepMacro!int(0, splitted[1].to!int, 1)));
+        else if (splitted.length == 3)
+            return inputRangeObject(map!(to!string)
+                                    (StepMacro!int(splitted[1].to!int, splitted[2].to!int, 1)));
+        else if (splitted.length == 4)
+            return inputRangeObject(map!(to!string)
+                                    (StepMacro!int(splitted[1].to!int, splitted[2].to!int, splitted[3].to!int)));
+        else
+            throw new Exception("Bad number of parameters");
+        break;
+    case "double":
+        if (splitted.length == 2)
+            return inputRangeObject(map!(to!string)
+                                    (StepMacro!double(0, splitted[1].to!double, 1)));
+        else if (splitted.length == 3)
+            return inputRangeObject(map!(to!string)
+                                    (StepMacro!double(splitted[1].to!double, splitted[2].to!double, 1)));
+        else if (splitted.length == 4)
+            return inputRangeObject(map!(to!string)
+                                    (StepMacro!double(splitted[1].to!double, splitted[2].to!double, splitted[3].to!double)));
+        else
+            throw new Exception("Bad number of parameters");
+        break;
+    case "enum":
+        return inputRangeObject(splitted[1..$]);
+        break;
+    default:
+        throw new Exception("Unrecognized macro");
     }
 }
 
 unittest {
-    auto m = Macro("int 3 3 1");
+    //auto m = constructMacro("int 3 10 1");
+    auto m = constructMacro("enum 3.4 10 1");
+
+    writeln(m);
 
     // auto m = match("hel%(lo)qq%(zxcv)q", regex(`%\(.*?\)`, "g"));
     // if (!m.empty)
