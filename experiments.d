@@ -2,6 +2,7 @@ import std.stdio;
 import std.getopt;
 import std.process;
 import std.array;
+import std.exception;
 import std.typecons;
 import std.typetuple;
 import std.range;
@@ -34,16 +35,28 @@ private:
     T step_;
 public:
     this(T begin, T end, T step)
-    in
     {
-        assert((step > 0) && (begin <= end) ||
-               (step < 0) && (begin >= end));
-    }
-    body
-    {
+        enforce((step > 0) && (begin <= end) ||
+                (step < 0) && (begin >= end));
+
         begin_ = begin;
         end_   = end;
         step_  = step;
+    }
+
+    this(T[] args)
+    {
+        if (args.length == 1)
+            this(0, args[0].to!T, 1);
+        else if (args.length == 2)
+            this(args[0].to!T, args[1].to!T, 1);
+        else if (args.length == 3)
+            this(args[0].to!T, args[1].to!T, args[2].to!T);
+        else
+        {
+            new Exception("Wrong number of elements (must be 1, 2 or 3)");
+            this(T.init, T.init, T.init); // dmd bug?
+        }
     }
 
     @property T front() { return begin_; }
@@ -78,33 +91,24 @@ InputRange!string constructMacro(string m)
     switch (splitted[0])
     {
     case "int":
-        if (splitted.length == 2)
-            return inputRangeObject(map!(to!string)
-                                    (StepMacro!int(0, splitted[1].to!int, 1)));
-        else if (splitted.length == 3)
-            return inputRangeObject(map!(to!string)
-                                    (StepMacro!int(splitted[1].to!int, splitted[2].to!int, 1)));
-        else if (splitted.length == 4)
-            return inputRangeObject(map!(to!string)
-                                    (StepMacro!int(splitted[1].to!int, splitted[2].to!int, splitted[3].to!int)));
-        else
-            throw new Exception("Bad number of parameters");
+        return splitted[1..$]
+            .map!(to!int)
+            .array
+            .StepMacro!int
+            .map!(to!string)
+            .inputRangeObject;
         break;
     case "double":
-        if (splitted.length == 2)
-            return inputRangeObject(map!(to!string)
-                                    (StepMacro!double(0, splitted[1].to!double, 1)));
-        else if (splitted.length == 3)
-            return inputRangeObject(map!(to!string)
-                                    (StepMacro!double(splitted[1].to!double, splitted[2].to!double, 1)));
-        else if (splitted.length == 4)
-            return inputRangeObject(map!(to!string)
-                                    (StepMacro!double(splitted[1].to!double, splitted[2].to!double, splitted[3].to!double)));
-        else
-            throw new Exception("Bad number of parameters");
+        return splitted[1..$]
+            .map!(to!double)
+            .array
+            .StepMacro!double
+            .map!(to!string)
+            .inputRangeObject;
         break;
     case "enum":
-        return inputRangeObject(splitted[1..$]);
+        return splitted[1..$]
+            .inputRangeObject;
         break;
     default:
         throw new Exception("Unrecognized macro");
@@ -112,20 +116,17 @@ InputRange!string constructMacro(string m)
 }
 
 unittest {
-    //auto m = constructMacro("int 3 10 1");
-    auto m = constructMacro("enum 3.4 10 1");
+    assert(equal(constructMacro("int 0 10 1"), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]));
+    assert(equal(constructMacro("int 3 10 2"), ["3", "5", "7", "9"]));
+    assert(equal(constructMacro("int 4 10 2"), ["4", "6", "8"]));
+    assert(equal(constructMacro("int 10 -3 -3"), ["10", "7", "4", "1", "-2"]));
 
-    writeln(m);
+    assert(equal(constructMacro("double 3.43 4.11 0.1"), ["3.43", "3.53", "3.63", "3.73", "3.83", "3.93", "4.03"]));
+    assert(equal(constructMacro("double 4.43 3.11 -0.11"), ["4.43", "4.32", "4.21", "4.1", "3.99", "3.88", "3.77", "3.66", "3.55", "3.44", "3.33", "3.22"]));
 
-    // auto m = match("hel%(lo)qq%(zxcv)q", regex(`%\(.*?\)`, "g"));
-    // if (!m.empty)
-    //     writeln(m.pre, " | ", m.hit, " | ", m.post);
-    // foreach (m; match("hel%(lo)qq%(zxcv)q", regex(`%\(.*?\)`, "g")))
-    //     writeln(m.pre, " | ", m.hit, " | ", m.post);
-
-
-
-//    writeln(splitter("hello  world", " "));
+    assert(constructMacro("enum").empty);
+    assert(constructMacro("enum  ").empty);
+    assert(equal(constructMacro("enum sf 1sdf& szv &11"), ["sf", "1sdf&", "szv", "&11"]));
 }
 
 void main(string args[])
