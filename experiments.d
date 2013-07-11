@@ -62,15 +62,15 @@ public:
     @property T front() { return begin_; }
     @property void popFront() { begin_ += step_; }
     @property bool empty() { return
-            (step_ > 0) && (begin_ >= end_) ||
-            (step_ < 0) && (begin_ <= end_);
+            (step_ > 0) && (begin_ > end_) ||
+            (step_ < 0) && (begin_ < end_);
     }
 }
 
 unittest {
-    assert(equal(StepMacro!int(0, 10, 1), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
+    assert(equal(StepMacro!int(0, 10, 1), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
     assert(equal(StepMacro!int(3, 10, 2), [3, 5, 7, 9]));
-    assert(equal(StepMacro!long(4, 10, 2), [4, 6, 8]));
+    assert(equal(StepMacro!long(4, 10, 2), [4, 6, 8, 10]));
     assert(equal(StepMacro!byte(10, -3, -3), [10, 7, 4, 1, -2]));
 }
 
@@ -116,17 +116,89 @@ InputRange!string constructMacro(string m)
 }
 
 unittest {
-    assert(equal(constructMacro("int 0 10 1"), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]));
+    assert(equal(constructMacro("int 0 10 1"), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]));
     assert(equal(constructMacro("int 3 10 2"), ["3", "5", "7", "9"]));
-    assert(equal(constructMacro("int 4 10 2"), ["4", "6", "8"]));
+    assert(equal(constructMacro("int 4 10 2"), ["4", "6", "8", "10"]));
     assert(equal(constructMacro("int 10 -3 -3"), ["10", "7", "4", "1", "-2"]));
 
     assert(equal(constructMacro("double 3.43 4.11 0.1"), ["3.43", "3.53", "3.63", "3.73", "3.83", "3.93", "4.03"]));
-    assert(equal(constructMacro("double 4.43 3.11 -0.11"), ["4.43", "4.32", "4.21", "4.1", "3.99", "3.88", "3.77", "3.66", "3.55", "3.44", "3.33", "3.22"]));
+    assert(equal(constructMacro("double 4.43 3.11 -0.11"), ["4.43", "4.32", "4.21", "4.1", "3.99", "3.88", "3.77", "3.66", "3.55", "3.44", "3.33", "3.22", "3.11"]));
 
     assert(constructMacro("enum").empty);
     assert(constructMacro("enum  ").empty);
     assert(equal(constructMacro("enum sf 1sdf& szv &11"), ["sf", "1sdf&", "szv", "&11"]));
+}
+
+struct Patch
+{
+private:
+    string patch_parts_[];
+    string macros_[];
+public:
+    this(string patch, string open = `\$\(`, string close = `\)`)
+    {
+        string re = open~`.*?`~close;
+
+        auto m = match(patch, regex(re));
+        while (!m.empty)
+        {
+            patch_parts_ ~= m.pre;
+            macros_ ~= m.hit[open.length - open.count('\\') .. $ - close.length + close.count('\\')];
+
+            patch = patch[m.pre.length + m.hit.length .. $];
+            m = match(patch, regex(re));
+        }
+        patch_parts_ ~= m.post;
+    }
+}
+
+unittest {
+    string open = `\$\(`;
+    string close = `\)`;
+    //auto m = match("hel($ double 3.1 1.2 -0.1) qq ($ enum h h q )q", regex(open~`.*?`~close, "g"));
+    // foreach (m; match("hel($ double 3.1 1.2 -0.1) qq ($ enum h h q )q", regex(open~`.*?`~close, "g")))
+    //     //if (!m.empty)
+    //     writeln(m.pre, " | ", m.hit, " | ", m.post);
+    // else
+    //     writeln("empty");
+
+    auto p = Patch("hel$(double 3.1 1.2 -0.1) qq$(enum h h q )q");
+    auto p2= Patch(q"DELIM
+diff --git a/tld.hpp b/tld.hpp
+index e2861cd..2d028de 100644
+--- a/tld.hpp
++++ b/tld.hpp
+@@ -22,11 +22,11 @@ const float NN_THRESHOLD = 0.61f;
+ const float NN_POS_THRESHOLD = 0.72f;
+ const float NN_NEG_THRESHOLD = 0.39f;
+
+-const float FERNS_THRESHOLD     = 0.5f;
+-const float FERNS_POS_THRESHOLD = 0.5f;
+-const float FERNS_NEG_THRESHOLD = 0.5f;
+-const float OVERLAP_LOW    = 0.2f;
+-const float OVERLAP_UP     = 0.6f;
++const float FERNS_THRESHOLD      = $(double 0.1 0.3 0.1);
++const float FERNS_POS_THRESHOLD  = $(double 0.1 0.3 0.1);
++const float FERNS_NEG_THRESHOLD  = $(double 0.2 0.1 -0.1);
++const float OVERLAP_LOW          = 0.2f;
++const float OVERLAP_UP           = 0.6f;
+
+ //#define TLD_SHOW_DEBUGGING_WINDOWS 1
+DELIM");
+
+    //foreach (q; zip(p2.patch_parts_, p2.macros_))
+    //writeln(reduce!((a, b) => a ~ b)("", roundRobin(p2.patch_parts_, p2.macros_)));
+
+    auto macros = reduce!((a, b) => a ~ constructMacro(b).array)
+        (cast(string[][])[], p2.macros_)
+        .cartesianProduct;
+
+    foreach(m; macros)
+    {
+        writeln(reduce!((a, b) => a ~ b)("", roundRobin(p2.patch_parts_, m))); // that's a patch I want
+    }
+
+    //writeln(macros);
 }
 
 void main(string args[])
