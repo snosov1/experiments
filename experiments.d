@@ -1,4 +1,5 @@
 import std.stdio;
+import std.file;
 import std.getopt;
 import std.process;
 import std.array;
@@ -169,59 +170,17 @@ void main(string args[])
         return;
     }
 
-    string repo_path = args[1];
-    string patch =
-        q"DELIM
-diff --git a/tld.hpp b/tld.hpp
-index e2861cd..2d028de 100644
---- a/tld.hpp
-+++ b/tld.hpp
-@@ -22,11 +22,11 @@ const float NN_THRESHOLD = 0.61f;
- const float NN_POS_THRESHOLD = 0.72f;
- const float NN_NEG_THRESHOLD = 0.39f;
-
--const float FERNS_THRESHOLD     = 0.5f;
--const float FERNS_POS_THRESHOLD = 0.5f;
--const float FERNS_NEG_THRESHOLD = 0.5f;
--const float OVERLAP_LOW    = 0.2f;
--const float OVERLAP_UP     = 0.6f;
-+const float FERNS_THRESHOLD      = 0.5f;
-+const float FERNS_POS_THRESHOLD  = 0.5f;
-+const float FERNS_NEG_THRESHOLD  = 0.5f;
-+const float OVERLAP_LOW          = 0.2f;
-+const float OVERLAP_UP           = 0.6f;
-
- //#define TLD_SHOW_DEBUGGING_WINDOWS 1
-DELIM";
-
-    foreach (t; cartesianProduct(
-                 ["0.4f", "0.5f", "0.6f", "0.7f", "0.8f"],
-                 ["0.1f", "0.3f", "0.5f", "0.7f", "0.9f"],
-                 ["0.3f", "0.5f", "0.7f", "0.9f"]
-                 ))
+    int i = 0;
+    foreach (t; args[1].readText.PatchRange[])
     {
-        // auto m = match(patch, regex(`\+.*OVERLAP_LOW *= 0.2f`));
-        // string current = m.pre ~ "+const float OVERLAP_LOW          = " ~ t[0] ~ m.post;
-        // m = match(current, regex(`\+.*OVERLAP_UP *= 0.6f`));
-        // current = m.pre ~ "+const float OVERLAP_UP           = " ~ t[1] ~ m.post;
+        string filename = (++i).to!string~".patch";
 
-        auto m = match(patch, regex(`\+.*FERNS_THRESHOLD *= 0.5f`));
-        string current = m.pre ~ "+const float FERNS_THRESHOLD          = " ~ t[0] ~ m.post;
-        m = match(current, regex(`\+.*FERNS_POS_THRESHOLD *= 0.5f`));
-        current = m.pre ~ "+const float FERNS_POS_THRESHOLD           = " ~ t[1] ~ m.post;
-        m = match(current, regex(`\+.*FERNS_NEG_THRESHOLD *= 0.5f`));
-        current = m.pre ~ "+const float FERNS_NEG_THRESHOLD           = " ~ t[2] ~ m.post;
-
-        string filename = "ferns-thresh."~t[0]~"."~t[1]~"."~t[2]~".patch";
-
-        auto f = File(repo_path ~ "/" ~ filename, "w");
-        f.write(current);
+        auto f = File(filename, "w");
+        f.write(t);
         f.close();
 
-        writeln(t);
-        writeln(shell("cd " ~ repo_path ~ " && git checkout -- tld.hpp"));
-        writeln(shell("cd " ~ repo_path ~ " && patch -i " ~ filename));
-        writeln(shell("ninja -C /home/sergei/Projects/CoreVisionAPI/build-desk/"));
-        shell("python /home/sergei/Projects/tracking/scripts/run.py -e /home/sergei/Projects/tracking/algorithms/cvapi_tld.py -D /home/sergei/Projects/tracking/datasets/ -a cvapi_tld_ORIG cvapi_tld cvapi_tld_YUV cvapi_tld_NEW >/home/sergei/Projects/CoreVisionAPI/modules/core_vision_api/src/trackers/ferns-results/" ~ filename ~ ".txt");
+        writeln(shell("git checkout -- ."));
+        writeln(shell("patch -i " ~ filename));
+        //writeln(shell(args[2]));
     }
 }
