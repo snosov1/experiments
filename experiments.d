@@ -187,9 +187,9 @@ void main(string args[])
         f.write(t);
         f.close();
 
-        writeln(shell("git checkout -- ."));
-        writeln(shell("patch -i '" ~ filename ~ "'"));
+        write(shell("git checkout -- ."));
+        write(shell("patch -i '" ~ filename ~ "'"));
         writeln(command);
-        writeln(shell(command));
+        write(shell(command));
     }
 }
