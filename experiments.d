@@ -142,24 +142,30 @@ public:
         patch_parts_ ~= m.post;
     }
 
-    auto opSlice()
+    auto patches()
+    {
+        return
+            parameters()
+            .map!(m => reduce!((a, b) => a ~ b)("", roundRobin(patch_parts_, m)));
+    }
+
+    auto parameters()
     {
         return
             reduce!((a, b) => a ~ b.constructMacro.array)(cast(string[][])[], macros_)
-            .cartesianProduct
-            .map!(m => reduce!((a, b) => a ~ b)("", roundRobin(patch_parts_, m)));
+            .cartesianProduct;
     }
 }
 
 unittest {
     auto p = PatchRange("abc $(int 2 4 2) bcd $(enum a b c)");
 
-    assert(equal(p[],["abc 2 bcd a",
-                      "abc 4 bcd a",
-                      "abc 2 bcd b",
-                      "abc 4 bcd b",
-                      "abc 2 bcd c",
-                      "abc 4 bcd c"]));
+    assert(equal(p.patches,["abc 2 bcd a",
+                            "abc 4 bcd a",
+                            "abc 2 bcd b",
+                            "abc 4 bcd b",
+                            "abc 2 bcd c",
+                            "abc 4 bcd c"]));
 }
 
 void main(string args[])
@@ -172,16 +178,17 @@ void main(string args[])
 
     int i = 0;
     string command = reduce!((a, b) => a ~ " " ~ b)("", args[2..$]);
-    foreach (t; args[1].readText.PatchRange[])
+    auto pr = args[1].readText.PatchRange;
+    foreach (t, p; zip(pr.patches, pr.parameters))
     {
-        string filename = (++i).to!string~".patch";
+        string filename = reduce!((a,b) => a ~ b ~ ".")("", p)~"patch";
 
         auto f = File(filename, "w");
         f.write(t);
         f.close();
 
         writeln(shell("git checkout -- ."));
-        writeln(shell("patch -i " ~ filename));
+        writeln(shell("patch -i '" ~ filename ~ "'"));
         writeln(command);
         writeln(shell(command));
     }
