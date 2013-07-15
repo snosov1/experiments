@@ -166,11 +166,12 @@ void main(string args[])
 {
     if (args.length <= 2)
     {
-        writeln("Usage: ", args[0], " <path-to-git-repo> <patch>");
+        writeln("Usage: ", args[0].retro.findSplitBefore("/")[0].array.retro, " <patch> <command>");
         return;
     }
 
     int i = 0;
+    string command = reduce!((a, b) => a ~ " " ~ b)("", args[2..$]);
     foreach (t; args[1].readText.PatchRange[])
     {
         string filename = (++i).to!string~".patch";
@@ -181,6 +182,7 @@ void main(string args[])
 
         writeln(shell("git checkout -- ."));
         writeln(shell("patch -i " ~ filename));
-        //writeln(shell(args[2]));
+        writeln(command);
+        writeln(shell(command));
     }
 }
