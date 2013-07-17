@@ -179,6 +179,7 @@ void main(string args[])
     int i = 0;
     string command = reduce!((a, b) => a ~ " " ~ b)("", args[2..$]);
     auto pr = args[1].readText.PatchRange;
+    auto length = pr.parameters.array.length;
     foreach (t, p; zip(pr.patches, pr.parameters))
     {
         string filename = reduce!((a,b) => a ~ b ~ ".")("", p)~"patch";
@@ -188,6 +189,7 @@ void main(string args[])
         f.close();
 
         write(shell("git checkout -- ."));
+        writefln("patch %s of %s: %s", ++i, length, filename);
         write(shell("patch -i '" ~ filename ~ "'"));
         writeln(command);
         write(shell(command));
